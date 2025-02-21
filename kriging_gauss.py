@@ -233,10 +233,11 @@ def run_kriging():
 # Функция для создания DXF-файла в памяти
 def create_dxf_file(grid_x, grid_y, z_pred, step):
     try:
+        # Создаем новый DXF-документ
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
 
-        # Границы
+        # Добавляем границы
         boundary_points = [
             (min(grid_x), min(grid_y), 0),
             (max(grid_x), min(grid_y), 0),
@@ -246,7 +247,7 @@ def create_dxf_file(grid_x, grid_y, z_pred, step):
         ]
         msp.add_polyline3d(boundary_points)
 
-        # Изополи
+        # Добавляем изополи
         min_z_pred = np.min(z_pred)
         max_z_pred = np.max(z_pred)
         levels = np.arange(min_z_pred, max_z_pred, step)
@@ -259,15 +260,14 @@ def create_dxf_file(grid_x, grid_y, z_pred, step):
                     points = [(float(x), float(y), height) for x, y in line]
                     msp.add_polyline3d(points)
 
-        # Сохранение в BytesIO
+        # Сохраняем DXF-документ в BytesIO
         output = io.BytesIO()
         doc.saveas(output)
-        output.seek(0)
-        logging.info("DXF-файл успешно создан в памяти.")
+        output.seek(0)  # Перематываем поток в начало
         return output
     except Exception as e:
-        logging.error(f"Ошибка при создании DXF-файла: {e}")
-        raise
+        st.error(f"Ошибка при создании DXF-файла: {e}")
+        return None
 
 
 # Функция для сохранения результатов
@@ -281,7 +281,7 @@ def save_results():
         st.info(f"Общее количество рассчитанных точек: {total_points}")
 
         # Пользовательское значение для уменьшения плотности точек
-        target_points = st.number_input("Укажите желаемое количество точек для сохранения (минимум 50):", min_value=50,
+        target_points = st.number_input("Укажите желаемое количество точек для сохранения:", min_value=1,
                                         max_value=total_points, value=total_points)
 
         # Кнопка для сброса до исходного количества точек
@@ -355,19 +355,20 @@ def save_results():
             "Значение": [f"{min_z_pred:.2f}", f"{max_z_pred:.2f}", f"{diff_z_pred:.2f}"]
         }))
 
-        step = st.number_input("Введите шаг изополей (например, 0.15 м):", value=0.15)
+        step = st.number_input("Введите шаг изополей (например, 0.25 м):", value=0.25)
         if step <= 0:
             st.error("Шаг изополей должен быть положительным числом.")
             return
 
         # Создание и скачивание DXF-файла
         dxf_file = create_dxf_file(st.session_state.grid_x, st.session_state.grid_y, st.session_state.z_pred, step)
-        st.download_button(
-            label="Скачать изополи в DXF",
-            data=dxf_file,
-            file_name="isolines.dxf",
-            mime="application/dxf"
-        )
+        if dxf_file:
+            st.download_button(
+                label="Скачать изополи в DXF",
+                data=dxf_file,
+                file_name="isolines.dxf",
+                mime="application/dxf"
+            )
     except Exception as e:
         st.error(f"Не удалось сохранить результаты: {str(e)}")
 
