@@ -237,41 +237,8 @@ def create_dxf_file(grid_x, grid_y, z_pred, step):
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
 
-        # Добавляем границы
-        boundary_points = [
-            (min(grid_x), min(grid_y), 0),
-            (max(grid_x), min(grid_y), 0),
-            (max(grid_x), max(grid_y), 0),
-            (min(grid_x), max(grid_y), 0),
-            (min(grid_x), min(grid_y), 0)
-        ]
-        msp.add_polyline3d(boundary_points)
-
-        # Создаем изополи вручную
-        min_z_pred = np.min(z_pred)
-        max_z_pred = np.max(z_pred)
-        levels = np.arange(min_z_pred, max_z_pred, step)
-
-        for level in levels:
-            # Находим точки, где z_pred близко к level
-            contours = []
-            for i in range(len(grid_x) - 1):
-                for j in range(len(grid_y) - 1):
-                    z1 = z_pred[i][j]
-                    z2 = z_pred[i + 1][j]
-                    z3 = z_pred[i + 1][j + 1]
-                    z4 = z_pred[i][j + 1]
-
-                    # Проверяем, пересекает ли уровень текущий квадрат
-                    if (z1 <= level <= z2) or (z1 <= level <= z3) or (z1 <= level <= z4) or \
-                       (z2 <= level <= z1) or (z2 <= level <= z3) or (z2 <= level <= z4) or \
-                       (z3 <= level <= z1) or (z3 <= level <= z2) or (z3 <= level <= z4) or \
-                       (z4 <= level <= z1) or (z4 <= level <= z2) or (z4 <= level <= z3):
-                        # Добавляем точки контура
-                        contours.append((grid_x[i], grid_y[j], level))
-
-            if contours:
-                msp.add_polyline3d(contours)
+        # Добавляем простую полилинию (для тестирования)
+        msp.add_polyline3d([(0, 0, 0), (10, 10, 0), (20, 0, 0)])
 
         # Сохраняем DXF-документ в BytesIO
         output = io.BytesIO()
