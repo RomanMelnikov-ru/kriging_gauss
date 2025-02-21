@@ -8,6 +8,7 @@ from scipy.spatial.distance import pdist
 import ezdxf
 import matplotlib.pyplot as plt  # Импорт для работы с изополями
 import io  # Добавьте этот импорт
+import tempfile
 
 # Инициализация состояния сессии
 if 'x' not in st.session_state:
@@ -334,16 +335,22 @@ def save_results():
                     points = [(float(x), float(y), height) for x, y in line]
                     msp.add_polyline3d(points)
 
+        # Создание временного файла для DXF
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".dxf") as tmp_file:
+            doc.saveas(tmp_file.name)
+            tmp_file.seek(0)
+            dxf_data = tmp_file.read()
+
         # Скачивание DXF
-        output_dxf = io.BytesIO()
-        doc.save(output_dxf)
-        output_dxf.seek(0)
         st.download_button(
             label="Скачать DXF",
-            data=output_dxf,
+            data=dxf_data,
             file_name="isolines.dxf",
             mime="application/dxf"
         )
+
+        # Удаление временного файла
+        os.unlink(tmp_file.name)
     except Exception as e:
         st.error(f"Не удалось сохранить результаты: {str(e)}")
 
