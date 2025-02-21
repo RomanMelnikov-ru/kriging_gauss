@@ -7,6 +7,7 @@ from pykrige.ok import OrdinaryKriging
 from scipy.spatial.distance import pdist
 import ezdxf
 import matplotlib.pyplot as plt  # Импорт для работы с изополями
+import io  # Добавьте этот импорт
 
 # Инициализация состояния сессии
 if 'x' not in st.session_state:
