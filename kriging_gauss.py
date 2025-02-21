@@ -247,18 +247,31 @@ def create_dxf_file(grid_x, grid_y, z_pred, step):
         ]
         msp.add_polyline3d(boundary_points)
 
-        # Добавляем изополи
+        # Создаем изополи вручную
         min_z_pred = np.min(z_pred)
         max_z_pred = np.max(z_pred)
         levels = np.arange(min_z_pred, max_z_pred, step)
-        contours = plt.contour(grid_x, grid_y, z_pred, levels=levels)
 
-        for level_index, level in enumerate(contours.allsegs):
-            for line in level:
-                if len(line) > 1:
-                    height = contours.levels[level_index]
-                    points = [(float(x), float(y), height) for x, y in line]
-                    msp.add_polyline3d(points)
+        for level in levels:
+            # Находим точки, где z_pred близко к level
+            contours = []
+            for i in range(len(grid_x) - 1):
+                for j in range(len(grid_y) - 1):
+                    z1 = z_pred[i][j]
+                    z2 = z_pred[i + 1][j]
+                    z3 = z_pred[i + 1][j + 1]
+                    z4 = z_pred[i][j + 1]
+
+                    # Проверяем, пересекает ли уровень текущий квадрат
+                    if (z1 <= level <= z2) or (z1 <= level <= z3) or (z1 <= level <= z4) or \
+                       (z2 <= level <= z1) or (z2 <= level <= z3) or (z2 <= level <= z4) or \
+                       (z3 <= level <= z1) or (z3 <= level <= z2) or (z3 <= level <= z4) or \
+                       (z4 <= level <= z1) or (z4 <= level <= z2) or (z4 <= level <= z3):
+                        # Добавляем точки контура
+                        contours.append((grid_x[i], grid_y[j], level))
+
+            if contours:
+                msp.add_polyline3d(contours)
 
         # Сохраняем DXF-документ в BytesIO
         output = io.BytesIO()
@@ -355,7 +368,7 @@ def save_results():
             "Значение": [f"{min_z_pred:.2f}", f"{max_z_pred:.2f}", f"{diff_z_pred:.2f}"]
         }))
 
-        step = st.number_input("Введите шаг изополей (например, 0.25 м):", value=0.25)
+        step = st.number_input("Введите шаг изополей (например, 0.15 м):", value=0.15)
         if step <= 0:
             st.error("Шаг изополей должен быть положительным числом.")
             return
