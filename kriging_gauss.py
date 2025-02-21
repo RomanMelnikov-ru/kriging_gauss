@@ -7,6 +7,7 @@ from pykrige.ok import OrdinaryKriging
 from scipy.spatial.distance import pdist
 import ezdxf
 import matplotlib.pyplot as plt  # Импорт для работы с изополями
+import io
 
 # Инициализация состояния сессии
 if 'x' not in st.session_state:
@@ -205,7 +206,7 @@ def save_results():
         st.info(f"Общее количество рассчитанных точек: {total_points}")
 
         # Пользовательское значение для уменьшения плотности точек
-        target_points = st.number_input("Укажите желаемое количество точек для сохранения (минимум 20):", min_value=20,
+        target_points = st.number_input("Укажите желаемое количество точек для сохранения (минимум 50):", min_value=50,
                                         max_value=total_points, value=total_points)
 
         # Кнопка для сброса до исходного количества точек
@@ -256,9 +257,18 @@ def save_results():
         })
         st.write("Результаты кригинга:")
         st.write(results)
-        if st.button("Скачать результаты в Excel"):
-            results.to_excel("kriging_results.xlsx", index=False)
-            st.success("Результаты сохранены в файл kriging_results.xlsx")
+
+        # Кнопка для скачивания Excel
+        output_excel = io.BytesIO()
+        with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
+            results.to_excel(writer, index=False)
+        output_excel.seek(0)
+        st.download_button(
+            label="Скачать результаты в Excel",
+            data=output_excel,
+            file_name="kriging_results.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
         # Сохранение изополей в DXF
         min_z_pred = np.min(st.session_state.z_pred)
@@ -270,9 +280,9 @@ def save_results():
             "Значение": [f"{min_z_pred:.2f}", f"{max_z_pred:.2f}", f"{diff_z_pred:.2f}"]
         }))
 
-        step = st.number_input("Введите шаг изополей (например, 0.15 м):", value=0.15)
+        step = st.number_input("Введите шаг горизонталей (например, 0.15 м):", value=0.15)
         if step <= 0:
-            st.error("Шаг изополей должен быть положительным числом.")
+            st.error("Шаг горизонталей должен быть положительным числом.")
             return
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
@@ -292,9 +302,17 @@ def save_results():
                     height = contours.levels[level_index]
                     points = [(float(x), float(y), height) for x, y in line]
                     msp.add_polyline3d(points)
-        if st.button("Скачать изополи в DXF"):
-            doc.saveas("isolines.dxf")
-            st.success("Изополи сохранены в файл isolines.dxf")
+
+        # Кнопка для скачивания DXF
+        output_dxf = io.BytesIO()
+        doc.saveas(output_dxf)
+        output_dxf.seek(0)
+        st.download_button(
+            label="Скачать изополи в DXF",
+            data=output_dxf,
+            file_name="isolines.dxf",
+            mime="application/dxf"
+        )
     except Exception as e:
         st.error(f"Не удалось сохранить результаты: {str(e)}")
 
