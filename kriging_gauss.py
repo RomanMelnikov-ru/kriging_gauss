@@ -237,7 +237,7 @@ def save_results():
 
         # Пользовательское значение для уменьшения плотности точек
         target_points = st.number_input("Укажите желаемое количество точек для сохранения (минимум 50):", min_value=50,
-                                        max_value=total_points, value=total_points)
+                                       max_value=total_points, value=total_points)
 
         # Кнопка для сброса до исходного количества точек
         if st.button("Сбросить до исходного количества точек"):
@@ -256,7 +256,7 @@ def save_results():
                 nlags=10
             )
             st.session_state.z_pred, st.session_state.sigma = OK.execute('grid', st.session_state.grid_x,
-                                                                         st.session_state.grid_y)
+                                                                        st.session_state.grid_y)
             st.success("Количество точек сброшено до исходного значения.")
             st.rerun()  # Используем st.rerun() для обновления интерфейса
 
@@ -287,9 +287,18 @@ def save_results():
         })
         st.write("Результаты кригинга:")
         st.write(results)
-        if st.button("Скачать результаты в Excel"):
-            results.to_excel("kriging_results.xlsx", index=False)
-            st.success("Результаты сохранены в файл kriging_results.xlsx")
+
+        # Скачивание Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            results.to_excel(writer, index=False)
+        output.seek(0)
+        st.download_button(
+            label="Скачать Excel",
+            data=output,
+            file_name="kriging_results.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
         # Сохранение изополей в DXF
         min_z_pred = np.min(st.session_state.z_pred)
@@ -323,9 +332,17 @@ def save_results():
                     height = contours.levels[level_index]
                     points = [(float(x), float(y), height) for x, y in line]
                     msp.add_polyline3d(points)
-        if st.button("Скачать изополи в DXF"):
-            doc.saveas("isolines.dxf")
-            st.success("Изополи сохранены в файл isolines.dxf")
+
+        # Скачивание DXF
+        output_dxf = io.BytesIO()
+        doc.save(output_dxf)
+        output_dxf.seek(0)
+        st.download_button(
+            label="Скачать DXF",
+            data=output_dxf,
+            file_name="isolines.dxf",
+            mime="application/dxf"
+        )
     except Exception as e:
         st.error(f"Не удалось сохранить результаты: {str(e)}")
 
