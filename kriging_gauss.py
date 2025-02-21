@@ -9,6 +9,7 @@ import ezdxf
 import matplotlib.pyplot as plt  # Импорт для работы с изополями
 import io  # Добавьте этот импорт
 import tempfile
+import os
 
 # Инициализация состояния сессии
 if 'x' not in st.session_state:
