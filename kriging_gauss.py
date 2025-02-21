@@ -6,12 +6,7 @@ from skgstat import Variogram
 from pykrige.ok import OrdinaryKriging
 from scipy.spatial.distance import pdist
 import ezdxf
-import matplotlib.pyplot as plt
-import io
-import logging
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
+import matplotlib.pyplot as plt  # Импорт для работы с изополями
 
 # Инициализация состояния сессии
 if 'x' not in st.session_state:
@@ -36,10 +31,10 @@ if 'z_pred' not in st.session_state:
     st.session_state.z_pred = None
 if 'sigma' not in st.session_state:
     st.session_state.sigma = None
-if 'grid_size' not in st.session_state:
-    st.session_state.grid_size = None
 if 'padding' not in st.session_state:
-    st.session_state.padding = None
+    st.session_state.padding = 0.0
+if 'grid_size' not in st.session_state:
+    st.session_state.grid_size = 100
 
 
 # Функция для загрузки данных из Excel
@@ -102,7 +97,7 @@ def plot_empirical_variogram():
         st.write("Параметры вариограммы:")
         st.table(pd.DataFrame({
             "Параметр": ["Range (Диапазон)", "Sill (Силл)", "Nugget (Нугет)", "Модель"],
-            "Значение": [f"{range_:.2f}", f"{st.session_state.sill:.3f}", f"{nugget:.2f}", "Гаусс"]
+            "Значение": [f"{range_:.2f}", f"{st.session_state.sill:.3f}", f"{nugget:.2f}", "Гауссова"]
         }))
     except Exception as e:
         st.error(f"Не удалось построить вариограмму: {str(e)}")
@@ -168,7 +163,7 @@ def run_kriging():
         st.table(pd.DataFrame({
             "Параметр": ["Range (Диапазон)", "Sill (Силл)", "Nugget (Нугет)", "Модель"],
             "Значение": [f"{st.session_state.range_:.2f}", f"{st.session_state.sill:.3f}",
-                         f"{st.session_state.nugget:.2f}", "Гауссова"]
+                         f"{st.session_state.nugget:.2f}", "Гаусс"]
         }))
 
         # Сохраняем grid_size и padding в st.session_state
@@ -230,27 +225,7 @@ def run_kriging():
         st.error(f"Не удалось выполнить кригинг: {str(e)}")
 
 
-# Функция для создания DXF-файла в памяти
-def create_dxf_file(grid_x, grid_y, z_pred, step):
-    try:
-        # Создаем новый DXF-документ
-        doc = ezdxf.new("R2010")
-        msp = doc.modelspace()
-
-        # Добавляем простую полилинию (для тестирования)
-        msp.add_polyline3d([(0, 0, 0), (10, 10, 0), (20, 0, 0)])
-
-        # Сохраняем DXF-документ в BytesIO
-        output = io.BytesIO()
-        doc.saveas(output)
-        output.seek(0)  # Перематываем поток в начало
-        return output
-    except Exception as e:
-        st.error(f"Ошибка при создании DXF-файла: {e}")
-        return None
-
-
-# Функция для сохранения результатов
+# Функция для сохранения результатов в Excel
 def save_results():
     if st.session_state.z_pred is None:
         st.error("Сначала выполните кригинг!")
@@ -261,7 +236,7 @@ def save_results():
         st.info(f"Общее количество рассчитанных точек: {total_points}")
 
         # Пользовательское значение для уменьшения плотности точек
-        target_points = st.number_input("Укажите желаемое количество точек для сохранения:", min_value=1,
+        target_points = st.number_input("Укажите желаемое количество точек для сохранения (минимум 50):", min_value=50,
                                         max_value=total_points, value=total_points)
 
         # Кнопка для сброса до исходного количества точек
@@ -312,18 +287,9 @@ def save_results():
         })
         st.write("Результаты кригинга:")
         st.write(results)
-
-        # Кнопка для скачивания Excel
-        output_excel = io.BytesIO()
-        with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-            results.to_excel(writer, index=False)
-        output_excel.seek(0)
-        st.download_button(
-            label="Скачать результаты в Excel",
-            data=output_excel,
-            file_name="kriging_results.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        if st.button("Скачать результаты в Excel"):
+            results.to_excel("kriging_results.xlsx", index=False)
+            st.success("Результаты сохранены в файл kriging_results.xlsx")
 
         # Сохранение изополей в DXF
         min_z_pred = np.min(st.session_state.z_pred)
@@ -335,28 +301,31 @@ def save_results():
             "Значение": [f"{min_z_pred:.2f}", f"{max_z_pred:.2f}", f"{diff_z_pred:.2f}"]
         }))
 
-        step = st.number_input("Введите шаг горизонталей (например, 0.15 м):", value=0.15)
+        step = st.number_input("Введите шаг изополей (например, 0.15 м):", value=0.15)
         if step <= 0:
-            st.error("Шаг горизонталейй должен быть положительным числом.")
+            st.error("Шаг изополей должен быть положительным числом.")
             return
-
-        # Кнопка для формирования горизонталей
-        if st.button("Сформировать горизонтали"):
-            with st.spinner("Формирование горизонталей..."):
-                st.session_state.dxf_file = create_dxf_file(st.session_state.grid_x, st.session_state.grid_y, st.session_state.z_pred, step)
-                st.success("Горизонтали успешно сформированы!")
-
-        # Кнопка для скачивания DXF-файла (активируется только после формирования горизонталей)
-        if 'dxf_file' in st.session_state and st.session_state.dxf_file is not None:
-            st.download_button(
-                label="Скачать изополи в DXF",
-                data=st.session_state.dxf_file,
-                file_name="isolines.dxf",
-                mime="application/dxf"
-            )
-        else:
-            st.warning("Сначала сформируйте горизонтали.")
-
+        doc = ezdxf.new("R2010")
+        msp = doc.modelspace()
+        boundary_points = [
+            (min(st.session_state.grid_x), min(st.session_state.grid_y), 0),
+            (max(st.session_state.grid_x), min(st.session_state.grid_y), 0),
+            (max(st.session_state.grid_x), max(st.session_state.grid_y), 0),
+            (min(st.session_state.grid_x), max(st.session_state.grid_y), 0),
+            (min(st.session_state.grid_x), min(st.session_state.grid_y), 0)
+        ]
+        msp.add_polyline3d(boundary_points)
+        levels = np.arange(min_z_pred, max_z_pred, step)
+        contours = plt.contour(st.session_state.grid_x, st.session_state.grid_y, st.session_state.z_pred, levels=levels)
+        for level_index, level in enumerate(contours.allsegs):
+            for line in level:
+                if len(line) > 1:
+                    height = contours.levels[level_index]
+                    points = [(float(x), float(y), height) for x, y in line]
+                    msp.add_polyline3d(points)
+        if st.button("Скачать изополи в DXF"):
+            doc.saveas("isolines.dxf")
+            st.success("Изополи сохранены в файл isolines.dxf")
     except Exception as e:
         st.error(f"Не удалось сохранить результаты: {str(e)}")
 
