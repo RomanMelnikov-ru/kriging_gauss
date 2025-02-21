@@ -6,8 +6,12 @@ from skgstat import Variogram
 from pykrige.ok import OrdinaryKriging
 from scipy.spatial.distance import pdist
 import ezdxf
-import matplotlib.pyplot as plt  # Импорт для работы с изополями
+import matplotlib.pyplot as plt
 import io
+import logging
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
 
 # Инициализация состояния сессии
 if 'x' not in st.session_state:
@@ -32,6 +36,11 @@ if 'z_pred' not in st.session_state:
     st.session_state.z_pred = None
 if 'sigma' not in st.session_state:
     st.session_state.sigma = None
+if 'grid_size' not in st.session_state:
+    st.session_state.grid_size = None
+if 'padding' not in st.session_state:
+    st.session_state.padding = None
+
 
 # Функция для загрузки данных из Excel
 def load_data():
@@ -56,11 +65,13 @@ def load_data():
 
             st.write("Информация о данных:")
             st.table(pd.DataFrame({
-                "Параметр": ["Количество точек", "Минимальное расстояние", "Максимальное расстояние", "Минимальное Z", "Максимальное Z"],
+                "Параметр": ["Количество точек", "Минимальное расстояние", "Максимальное расстояние", "Минимальное Z",
+                             "Максимальное Z"],
                 "Значение": [num_points, f"{min_distance:.2f}", f"{max_distance:.2f}", f"{min_z:.2f}", f"{max_z:.2f}"]
             }))
         except Exception as e:
             st.error(f"Не удалось загрузить данные: {str(e)}")
+
 
 # Функция для построения эмпирической и теоретической вариограммы
 def plot_empirical_variogram():
@@ -68,7 +79,8 @@ def plot_empirical_variogram():
         st.error("Сначала загрузите данные!")
         return
     try:
-        st.session_state.V = Variogram(coordinates=np.vstack((st.session_state.x, st.session_state.y)).T, values=st.session_state.z, model='gaussian')
+        st.session_state.V = Variogram(coordinates=np.vstack((st.session_state.x, st.session_state.y)).T,
+                                       values=st.session_state.z, model='gaussian')
         range_, sill, nugget = st.session_state.V.parameters
         st.session_state.range_ = range_
         st.session_state.sill = round(sill, 3)  # Округление sill до 3 знаков
@@ -76,7 +88,8 @@ def plot_empirical_variogram():
 
         # Построение графика
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=st.session_state.V.bins, y=st.session_state.V.experimental, mode='markers', name='Экспериментальная вариограмма'))
+        fig.add_trace(go.Scatter(x=st.session_state.V.bins, y=st.session_state.V.experimental, mode='markers',
+                                 name='Экспериментальная вариограмма'))
         h = np.linspace(0, np.max(st.session_state.V.bins), 100)
         theoretical = nugget + (sill - nugget) * (1 - np.exp(-(h ** 2) / (range_ ** 2)))
         fig.add_trace(go.Scatter(x=h, y=theoretical, mode='lines', name='Теоретическая вариограмма (модель Гаусса)'))
@@ -94,6 +107,7 @@ def plot_empirical_variogram():
     except Exception as e:
         st.error(f"Не удалось построить вариограмму: {str(e)}")
 
+
 # Функция для редактирования теоретической вариограммы
 def edit_variogram():
     if st.session_state.x is None:
@@ -103,12 +117,14 @@ def edit_variogram():
         st.write("Исходные параметры вариограммы:")
         st.table(pd.DataFrame({
             "Параметр": ["Range (Диапазон)", "Sill (Силл)", "Nugget (Нугет)", "Модель"],
-            "Значение": [f"{st.session_state.range_:.2f}", f"{st.session_state.sill:.3f}", f"{st.session_state.nugget:.2f}", "Гаусс"]
+            "Значение": [f"{st.session_state.range_:.2f}", f"{st.session_state.sill:.3f}",
+                         f"{st.session_state.nugget:.2f}", "Гаусс"]
         }))
 
         # Ввод новых значений
         new_range = st.number_input("Введите новое значение Range:", value=st.session_state.range_)
-        new_sill = st.number_input("Введите новое значение Sill:", value=st.session_state.sill, format="%.3f")  # Формат с 3 знаками
+        new_sill = st.number_input("Введите новое значение Sill:", value=st.session_state.sill,
+                                   format="%.3f")  # Формат с 3 знаками
         new_nugget = st.number_input("Введите новое значение Nugget:", value=st.session_state.nugget)
 
         if new_sill <= new_nugget:
@@ -117,12 +133,15 @@ def edit_variogram():
 
         # Построение обновленной вариограммы
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=st.session_state.V.bins, y=st.session_state.V.experimental, mode='markers', name='Экспериментальная вариограмма'))
+        fig.add_trace(go.Scatter(x=st.session_state.V.bins, y=st.session_state.V.experimental, mode='markers',
+                                 name='Экспериментальная вариограмма'))
         h = np.linspace(0, np.max(st.session_state.V.bins), 100)
-        original_theoretical = st.session_state.nugget + (st.session_state.sill - st.session_state.nugget) * (1 - np.exp(-(h ** 2) / (st.session_state.range_ ** 2)))
+        original_theoretical = st.session_state.nugget + (st.session_state.sill - st.session_state.nugget) * (
+                    1 - np.exp(-(h ** 2) / (st.session_state.range_ ** 2)))
         fig.add_trace(go.Scatter(x=h, y=original_theoretical, mode='lines', name='Исходная теоретическая вариограмма'))
         updated_theoretical = new_nugget + (new_sill - new_nugget) * (1 - np.exp(-(h ** 2) / (new_range ** 2)))
-        fig.add_trace(go.Scatter(x=h, y=updated_theoretical, mode='lines', name='Обновлённая теоретическая вариограмма'))
+        fig.add_trace(
+            go.Scatter(x=h, y=updated_theoretical, mode='lines', name='Обновлённая теоретическая вариограмма'))
         fig.update_layout(title='Сравнение исходной и обновлённой теоретической вариограммы',
                           xaxis_title='Расстояние (h)',
                           yaxis_title='Полудисперсия (γ(h))')
@@ -134,6 +153,7 @@ def edit_variogram():
         st.session_state.nugget = new_nugget
     except Exception as e:
         st.error(f"Не удалось обновить вариограмму: {str(e)}")
+
 
 # Функция для выполнения кригинга
 def run_kriging():
@@ -147,7 +167,8 @@ def run_kriging():
         st.write("Параметры вариограммы для кригинга:")
         st.table(pd.DataFrame({
             "Параметр": ["Range (Диапазон)", "Sill (Силл)", "Nugget (Нугет)", "Модель"],
-            "Значение": [f"{st.session_state.range_:.2f}", f"{st.session_state.sill:.3f}", f"{st.session_state.nugget:.2f}", "Гауссова"]
+            "Значение": [f"{st.session_state.range_:.2f}", f"{st.session_state.sill:.3f}",
+                         f"{st.session_state.nugget:.2f}", "Гауссова"]
         }))
 
         # Сохраняем grid_size и padding в st.session_state
@@ -155,21 +176,31 @@ def run_kriging():
         st.session_state.padding = st.number_input("Величина отступа:", value=0.0)
 
         if st.button("Выполнить кригинг"):
-            st.session_state.grid_x = np.linspace(min(st.session_state.x) - st.session_state.padding, max(st.session_state.x) + st.session_state.padding, st.session_state.grid_size)
-            st.session_state.grid_y = np.linspace(min(st.session_state.y) - st.session_state.padding, max(st.session_state.y) + st.session_state.padding, st.session_state.grid_size)
+            st.session_state.grid_x = np.linspace(min(st.session_state.x) - st.session_state.padding,
+                                                  max(st.session_state.x) + st.session_state.padding,
+                                                  st.session_state.grid_size)
+            st.session_state.grid_y = np.linspace(min(st.session_state.y) - st.session_state.padding,
+                                                  max(st.session_state.y) + st.session_state.padding,
+                                                  st.session_state.grid_size)
             OK = OrdinaryKriging(
                 st.session_state.x, st.session_state.y, st.session_state.z,
                 variogram_model='gaussian',
-                variogram_parameters={'sill': st.session_state.sill, 'range': st.session_state.range_, 'nugget': st.session_state.nugget},
+                variogram_parameters={'sill': st.session_state.sill, 'range': st.session_state.range_,
+                                      'nugget': st.session_state.nugget},
                 nlags=10
             )
             progress_bar = st.progress(0)
-            st.session_state.z_pred, st.session_state.sigma = OK.execute('grid', st.session_state.grid_x, st.session_state.grid_y)
+            st.session_state.z_pred, st.session_state.sigma = OK.execute('grid', st.session_state.grid_x,
+                                                                         st.session_state.grid_y)
             progress_bar.progress(100)
 
             # Изолинии кригинга с исходными точками
-            fig_contour = go.Figure(data=go.Contour(z=st.session_state.z_pred, x=st.session_state.grid_x, y=st.session_state.grid_y, colorscale='Viridis'))
-            fig_contour.add_trace(go.Scatter(x=st.session_state.x, y=st.session_state.y, mode='markers', name='Исходные точки', marker=dict(color='red', size=4)))
+            fig_contour = go.Figure(
+                data=go.Contour(z=st.session_state.z_pred, x=st.session_state.grid_x, y=st.session_state.grid_y,
+                                colorscale='Viridis'))
+            fig_contour.add_trace(
+                go.Scatter(x=st.session_state.x, y=st.session_state.y, mode='markers', name='Исходные точки',
+                           marker=dict(color='red', size=4)))
             fig_contour.update_layout(
                 title='Изополя после кригинга',
                 xaxis_title='X',
@@ -183,8 +214,11 @@ def run_kriging():
             st.plotly_chart(fig_contour)
 
             # 3D поверхность с aspectmode='data' и исходными точками
-            fig_3d = go.Figure(data=[go.Surface(z=st.session_state.z_pred, x=st.session_state.grid_x, y=st.session_state.grid_y)])
-            fig_3d.add_trace(go.Scatter3d(x=st.session_state.x, y=st.session_state.y, z=st.session_state.z, mode='markers', name='Исходные точки', marker=dict(color='red', size=3)))
+            fig_3d = go.Figure(
+                data=[go.Surface(z=st.session_state.z_pred, x=st.session_state.grid_x, y=st.session_state.grid_y)])
+            fig_3d.add_trace(
+                go.Scatter3d(x=st.session_state.x, y=st.session_state.y, z=st.session_state.z, mode='markers',
+                             name='Исходные точки', marker=dict(color='red', size=3)))
             fig_3d.update_layout(title='3D поверхность после кригинга', scene=dict(
                 xaxis_title='X',
                 yaxis_title='Y',
@@ -195,7 +229,48 @@ def run_kriging():
     except Exception as e:
         st.error(f"Не удалось выполнить кригинг: {str(e)}")
 
-# Функция для сохранения результатов в Excel
+
+# Функция для создания DXF-файла в памяти
+def create_dxf_file(grid_x, grid_y, z_pred, step):
+    try:
+        doc = ezdxf.new("R2010")
+        msp = doc.modelspace()
+
+        # Границы
+        boundary_points = [
+            (min(grid_x), min(grid_y), 0),
+            (max(grid_x), min(grid_y), 0),
+            (max(grid_x), max(grid_y), 0),
+            (min(grid_x), max(grid_y), 0),
+            (min(grid_x), min(grid_y), 0)
+        ]
+        msp.add_polyline3d(boundary_points)
+
+        # Изополи
+        min_z_pred = np.min(z_pred)
+        max_z_pred = np.max(z_pred)
+        levels = np.arange(min_z_pred, max_z_pred, step)
+        contours = plt.contour(grid_x, grid_y, z_pred, levels=levels)
+
+        for level_index, level in enumerate(contours.allsegs):
+            for line in level:
+                if len(line) > 1:
+                    height = contours.levels[level_index]
+                    points = [(float(x), float(y), height) for x, y in line]
+                    msp.add_polyline3d(points)
+
+        # Сохранение в BytesIO
+        output = io.BytesIO()
+        doc.saveas(output)
+        output.seek(0)
+        logging.info("DXF-файл успешно создан в памяти.")
+        return output
+    except Exception as e:
+        logging.error(f"Ошибка при создании DXF-файла: {e}")
+        raise
+
+
+# Функция для сохранения результатов
 def save_results():
     if st.session_state.z_pred is None:
         st.error("Сначала выполните кригинг!")
@@ -280,41 +355,22 @@ def save_results():
             "Значение": [f"{min_z_pred:.2f}", f"{max_z_pred:.2f}", f"{diff_z_pred:.2f}"]
         }))
 
-        step = st.number_input("Введите шаг горизонталей (например, 0.15 м):", value=0.15)
+        step = st.number_input("Введите шаг изополей (например, 0.15 м):", value=0.15)
         if step <= 0:
-            st.error("Шаг горизонталей должен быть положительным числом.")
+            st.error("Шаг изополей должен быть положительным числом.")
             return
-        doc = ezdxf.new("R2010")
-        msp = doc.modelspace()
-        boundary_points = [
-            (min(st.session_state.grid_x), min(st.session_state.grid_y), 0),
-            (max(st.session_state.grid_x), min(st.session_state.grid_y), 0),
-            (max(st.session_state.grid_x), max(st.session_state.grid_y), 0),
-            (min(st.session_state.grid_x), max(st.session_state.grid_y), 0),
-            (min(st.session_state.grid_x), min(st.session_state.grid_y), 0)
-        ]
-        msp.add_polyline3d(boundary_points)
-        levels = np.arange(min_z_pred, max_z_pred, step)
-        contours = plt.contour(st.session_state.grid_x, st.session_state.grid_y, st.session_state.z_pred, levels=levels)
-        for level_index, level in enumerate(contours.allsegs):
-            for line in level:
-                if len(line) > 1:
-                    height = contours.levels[level_index]
-                    points = [(float(x), float(y), height) for x, y in line]
-                    msp.add_polyline3d(points)
 
-        # Кнопка для скачивания DXF
-        output_dxf = io.BytesIO()
-        doc.saveas(output_dxf)
-        output_dxf.seek(0)
+        # Создание и скачивание DXF-файла
+        dxf_file = create_dxf_file(st.session_state.grid_x, st.session_state.grid_y, st.session_state.z_pred, step)
         st.download_button(
             label="Скачать изополи в DXF",
-            data=output_dxf,
+            data=dxf_file,
             file_name="isolines.dxf",
             mime="application/dxf"
         )
     except Exception as e:
         st.error(f"Не удалось сохранить результаты: {str(e)}")
+
 
 # Основной интерфейс Streamlit
 st.title("Кригинг с вариограммой Гаусса")
@@ -324,7 +380,8 @@ st.markdown("""
 """)
 
 # Вкладки
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Загрузка данных", "Вариограмма", "Редактирование вариограммы", "Кригинг", "Сохранение результатов"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["Загрузка данных", "Вариограмма", "Редактирование вариограммы", "Кригинг", "Сохранение результатов"])
 
 with tab1:
     st.header("Загрузка данных")
