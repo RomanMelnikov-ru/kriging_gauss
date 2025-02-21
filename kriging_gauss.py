@@ -260,7 +260,7 @@ def save_results():
 
         # Кнопка для скачивания Excel
         output_excel = io.BytesIO()
-        with pd.ExcelWriter(output_excel, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
             results.to_excel(writer, index=False)
         output_excel.seek(0)
         st.download_button(
