@@ -232,53 +232,7 @@ def save_results():
         st.error("Сначала выполните кригинг!")
         return
     try:
-        # Общее количество точек
-        total_points = len(st.session_state.grid_x) * len(st.session_state.grid_y)
-        st.info(f"Общее количество рассчитанных точек: {total_points}")
-
-        # Пользовательское значение для уменьшения плотности точек
-        target_points = st.number_input("Укажите желаемое количество точек для сохранения (минимум 50):", min_value=50,
-                                       max_value=total_points, value=total_points)
-
-        # Кнопка для сброса до исходного количества точек
-        if st.button("Сбросить до исходного количества точек"):
-            # Пересчет grid_x, grid_y и z_pred
-            st.session_state.grid_x = np.linspace(min(st.session_state.x) - st.session_state.padding,
-                                                  max(st.session_state.x) + st.session_state.padding,
-                                                  st.session_state.grid_size)
-            st.session_state.grid_y = np.linspace(min(st.session_state.y) - st.session_state.padding,
-                                                  max(st.session_state.y) + st.session_state.padding,
-                                                  st.session_state.grid_size)
-            OK = OrdinaryKriging(
-                st.session_state.x, st.session_state.y, st.session_state.z,
-                variogram_model='gaussian',
-                variogram_parameters={'sill': st.session_state.sill, 'range': st.session_state.range_,
-                                      'nugget': st.session_state.nugget},
-                nlags=10
-            )
-            st.session_state.z_pred, st.session_state.sigma = OK.execute('grid', st.session_state.grid_x,
-                                                                        st.session_state.grid_y)
-            st.success("Количество точек сброшено до исходного значения.")
-            st.rerun()  # Используем st.rerun() для обновления интерфейса
-
-        if target_points < total_points:
-            # Точное вычисление шага для получения желаемого количества точек
-            step_x = int(np.sqrt(total_points / target_points))
-            step_y = int(np.sqrt(total_points / target_points))
-
-            # Корректировка шага, чтобы количество точек было максимально близко к желаемому
-            while (len(st.session_state.grid_x) // step_x) * (len(st.session_state.grid_y) // step_y) > target_points:
-                step_x += 1
-                step_y += 1
-
-            # Уменьшение плотности точек
-            st.session_state.grid_x = st.session_state.grid_x[::step_x]
-            st.session_state.grid_y = st.session_state.grid_y[::step_y]
-            st.session_state.z_pred = st.session_state.z_pred[::step_x, ::step_y]
-
-            # Фактическое количество точек после уменьшения
-            actual_points = len(st.session_state.grid_x) * len(st.session_state.grid_y)
-            st.info(f"Фактическое количество точек после уменьшения: {actual_points}")
+        # ... (ваш код для подготовки данных)
 
         # Сохранение в Excel
         results = pd.DataFrame({
@@ -286,35 +240,20 @@ def save_results():
             'Y': np.tile(st.session_state.grid_y, len(st.session_state.grid_x)),
             'Z_pred': st.session_state.z_pred.flatten()
         })
-        st.write("Результаты кригинга:")
-        st.write(results)
 
         # Скачивание Excel
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        output_excel = io.BytesIO()
+        with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
             results.to_excel(writer, index=False)
-        output.seek(0)
+        output_excel.seek(0)
         st.download_button(
             label="Скачать Excel",
-            data=output,
+            data=output_excel,
             file_name="kriging_results.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # Сохранение изополей в DXF
-        min_z_pred = np.min(st.session_state.z_pred)
-        max_z_pred = np.max(st.session_state.z_pred)
-        diff_z_pred = max_z_pred - min_z_pred
-        st.write("Информация о Z_pred:")
-        st.table(pd.DataFrame({
-            "Параметр": ["Минимальное значение Z_pred", "Максимальное значение Z_pred", "Разница"],
-            "Значение": [f"{min_z_pred:.2f}", f"{max_z_pred:.2f}", f"{diff_z_pred:.2f}"]
-        }))
-
-        step = st.number_input("Введите шаг изополей (например, 0.15 м):", value=0.15)
-        if step <= 0:
-            st.error("Шаг изополей должен быть положительным числом.")
-            return
+        # Создание DXF-файла
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
         boundary_points = [
@@ -334,10 +273,12 @@ def save_results():
                     points = [(float(x), float(y), height) for x, y in line]
                     msp.add_polyline3d(points)
 
-        # Скачивание DXF
+        # Сохранение DXF в BytesIO
         output_dxf = io.BytesIO()
-        doc.save(output_dxf)
+        doc.write(output_dxf)  # Используем метод write для BytesIO
         output_dxf.seek(0)
+
+        # Скачивание DXF
         st.download_button(
             label="Скачать DXF",
             data=output_dxf,
