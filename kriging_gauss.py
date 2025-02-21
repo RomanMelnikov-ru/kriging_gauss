@@ -368,20 +368,28 @@ def save_results():
             "Значение": [f"{min_z_pred:.2f}", f"{max_z_pred:.2f}", f"{diff_z_pred:.2f}"]
         }))
 
-        step = st.number_input("Введите шаг изополей (например, 0.15 м):", value=0.15)
+        step = st.number_input("Введите шаг горизонталей (например, 0.15 м):", value=0.15)
         if step <= 0:
-            st.error("Шаг изополей должен быть положительным числом.")
+            st.error("Шаг горизонталейй должен быть положительным числом.")
             return
 
-        # Создание и скачивание DXF-файла
-        dxf_file = create_dxf_file(st.session_state.grid_x, st.session_state.grid_y, st.session_state.z_pred, step)
-        if dxf_file:
+        # Кнопка для формирования горизонталей
+        if st.button("Сформировать горизонтали"):
+            with st.spinner("Формирование горизонталей..."):
+                st.session_state.dxf_file = create_dxf_file(st.session_state.grid_x, st.session_state.grid_y, st.session_state.z_pred, step)
+                st.success("Горизонтали успешно сформированы!")
+
+        # Кнопка для скачивания DXF-файла (активируется только после формирования горизонталей)
+        if 'dxf_file' in st.session_state and st.session_state.dxf_file is not None:
             st.download_button(
                 label="Скачать изополи в DXF",
-                data=dxf_file,
+                data=st.session_state.dxf_file,
                 file_name="isolines.dxf",
                 mime="application/dxf"
             )
+        else:
+            st.warning("Сначала сформируйте горизонтали.")
+
     except Exception as e:
         st.error(f"Не удалось сохранить результаты: {str(e)}")
 
