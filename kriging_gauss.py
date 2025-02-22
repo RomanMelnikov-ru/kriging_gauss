@@ -100,7 +100,7 @@ def plot_empirical_variogram():
         st.write("Параметры вариограммы:")
         st.table(pd.DataFrame({
             "Параметр": ["Range (Диапазон)", "Sill (Силл)", "Nugget (Нугет)", "Модель"],
-            "Значение": [f"{range_:.2f}", f"{st.session_state.sill:.3f}", f"{nugget:.2f}", "Гауссова"]
+            "Значение": [f"{range_:.2f}", f"{st.session_state.sill:.3f}", f"{nugget:.2f}", "Гаусс"]
         }))
     except Exception as e:
         st.error(f"Не удалось построить вариограмму: {str(e)}")
