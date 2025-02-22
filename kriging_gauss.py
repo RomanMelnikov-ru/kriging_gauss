@@ -313,9 +313,9 @@ def save_results():
             "Значение": [f"{min_z_pred:.2f}", f"{max_z_pred:.2f}", f"{diff_z_pred:.2f}"]
         }))
 
-        step = st.number_input("Введите шаг изополей (например, 0.15 м):", value=0.15)
+        step = st.number_input("Введите шаг горизонталей (например, 0.15 м):", value=0.15)
         if step <= 0:
-            st.error("Шаг изополей должен быть положительным числом.")
+            st.error("Шаг горизонталей должен быть положительным числом.")
             return
         doc = ezdxf.new("R2010")
         msp = doc.modelspace()
